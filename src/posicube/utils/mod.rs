@@ -1,5 +1,5 @@
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, Responder};
-use reqwest::{Method, header::HeaderMap, Response, RequestBuilder, Error};
+use reqwest::{Error, header::HeaderMap, Method, RequestBuilder, Response};
 
 pub async fn get_from_client_request_properties(request: &HttpRequest) -> (HeaderMap, Method, String) {
     let mut headers: HeaderMap = HeaderMap::new();
@@ -18,29 +18,28 @@ pub async fn get_from_client_request_properties(request: &HttpRequest) -> (Heade
     (headers.clone(), Method::from(method), uri)
 }
 
-pub async fn create_response_to_client(response: Response) -> HttpResponse {
+pub async fn create_response_to_client(result: Result<Response, Error>) -> HttpResponse {
     println!("this app response to client");
-    let status_code = response.status();
-    let mut res = HttpResponseBuilder::new(status_code);
-    for (header_name, header_value) in response.headers().iter() {
-        let name = header_name.clone();
-        let value = header_value.clone();
-        println!("header name: {:?}, value: {:?}", name, value);
-        res.insert_header((name, value));
-    }
+    return match result {
+        Ok(response) => {
+            let status_code = response.status();
+            let mut res = HttpResponseBuilder::new(status_code);
+            for (header_name, header_value) in response.headers().iter() {
+                let name = header_name.clone();
+                let value = header_value.clone();
+                println!("header name: {:?}, value: {:?}", name, value);
+                res.insert_header((name, value));
+            }
 
-    let body = match response.text().await {
-        Ok(body_string) => body_string,
-        Err(e) => e.to_string(),
-    };
-    res.body(body).into()
-}
+            let body = match response.text().await {
+                Ok(body_string) => body_string,
+                Err(e) => e.to_string(),
+            };
 
-pub async fn request_to_other_server(builder: RequestBuilder) -> impl Responder {
-    match builder.send().await {
-        Ok(response) => response,
-        Err(err) => {
-            return HttpResponse::InternalServerError().body(err);
+            res.body(body).into()
         }
-    }
+        Err(e) => {
+            HttpResponse::InternalServerError().body(e.to_string()).into()
+        }
+    };
 }

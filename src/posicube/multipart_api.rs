@@ -19,10 +19,10 @@ use reqwest::header::HeaderMap;
 use reqwest::multipart::{Form, Part};
 use tempfile::NamedTempFile;
 
-use crate::posicube::utils::{create_response_to_client, get_from_client_request_properties, request_to_other_server};
+use crate::posicube::utils::{create_response_to_client, get_from_client_request_properties};
 
 // feature를 impl해야 next()를 할 수 있음...
-pub async fn send_multipart_api(req: HttpRequest, mut payload: Multipart) -> impl Responder {
+pub async fn send_multipart_api(req: HttpRequest, mut payload: Multipart) -> HttpResponse {
     let mut send_form = Form::new();
     while let Some(mut item) = payload.try_next().await.unwrap() {
         let mut bytes = BytesMut::new();
@@ -59,9 +59,11 @@ pub async fn send_multipart_api(req: HttpRequest, mut payload: Multipart) -> imp
     let dynamic_request_properties = get_from_client_request_properties(&req).await;
     let uri = dynamic_request_properties.2;
 
-    let builder = reqwest::Client::new()
+    let result = reqwest::Client::new()
         .post("http://localhost:8081".to_string() + uri.as_str())
-        .multipart(send_form);
+        .multipart(send_form)
+        .send()
+        .await;
 
-    request_to_other_server(builder)
+    create_response_to_client(result).await
 }
